@@ -1,8 +1,8 @@
 module github.com/rzv-me/caddy-awslambda-v2
 
-go 1.24
+go 1.22.3
 
-toolchain go1.24.1
+toolchain go1.23.0
 
 require (
 	github.com/aws/aws-lambda-go v1.47.0
