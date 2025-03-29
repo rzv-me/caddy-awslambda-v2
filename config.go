@@ -1,8 +1,6 @@
 package awslambda
 
 import (
-	"fmt"
-	"os"
 	"strconv"
 	"strings"
 
@@ -35,7 +33,7 @@ func parseCaddyfile(h httpcaddyfile.Helper) (caddyhttp.MiddlewareHandler, error)
 // UnmarshalCaddyfile implements caddyfile.Unmarshaler.
 func (awsLambda *AwsLambda) UnmarshalCaddyfile(d *caddyfile.Dispenser) error {
 
-	fmt.Fprintln(os.Stderr, d)
+	// fmt.Fprintln(os.Stderr, d)
 
 	for d.Next() {
 		args := d.RemainingArgs()

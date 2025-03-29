@@ -75,12 +75,12 @@ func (awsLambda AwsLambda) ServeHTTP(w http.ResponseWriter, r *http.Request, nex
 	// Create and prepare the Lambda request
 	req, err := NewLambdaRequest(r)
 	if err != nil {
-		return err
+		return caddyhttp.Error(http.StatusBadRequest, err)
 	}
 
 	payload, err := json.Marshal(req)
 	if err != nil {
-		return err
+		return caddyhttp.Error(http.StatusInternalServerError, err)
 	}
 
 	invokeInput := &lambda.InvokeInput{
@@ -90,13 +90,13 @@ func (awsLambda AwsLambda) ServeHTTP(w http.ResponseWriter, r *http.Request, nex
 
 	invokeOutput, err := awsLambda.invoker.Invoke(invokeInput)
 	if err != nil {
-		return err
+		return caddyhttp.Error(http.StatusBadGateway, err)
 	}
 
 	// Parse the Lambda response
 	response, err := ParseLambdaResponse(invokeOutput)
 	if err != nil {
-		return err
+		return caddyhttp.Error(http.StatusInternalServerError, err)
 	}
 
 	// Set response headers
@@ -133,7 +133,7 @@ func (awsLambda AwsLambda) ServeHTTP(w http.ResponseWriter, r *http.Request, nex
 	if response.IsBase64Encoded && response.Body != "" {
 		bodyBytes, err = base64.StdEncoding.DecodeString(response.Body)
 		if err != nil {
-			return err
+			return caddyhttp.Error(http.StatusInternalServerError, err)
 		}
 	} else {
 		bodyBytes = []byte(response.Body)
@@ -141,10 +141,13 @@ func (awsLambda AwsLambda) ServeHTTP(w http.ResponseWriter, r *http.Request, nex
 
 	// Write the response body
 	_, err = recorder.Write(bodyBytes)
+	if err != nil {
+		return caddyhttp.Error(http.StatusInternalServerError, err)
+	}
 
 	// Important: If we handled the request successfully and don't want to
 	// pass it to the next handler, we should return nil here
-	return err
+	return nil
 }
 
 func (awsLambda *AwsLambda) Provision(ctx caddy.Context) error {
