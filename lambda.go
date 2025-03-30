@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/lambda"
@@ -38,12 +39,6 @@ type AwsLambda struct {
 	// If set, all requests to this path will invoke this function.
 	FunctionName string `json:"function_name,omitempty"`
 
-	// Headers manipulates headers between Caddy and the backend.
-	// By default, all headers are passed-thru without changes,
-	// with the exceptions of special hop-by-hop headers.
-	//
-	// X-Forwarded-For, X-Forwarded-Proto and X-Forwarded-Host
-	// are also set implicitly.
 	Headers *headers.Handler `json:"headers,omitempty"`
 
 	invoker Invoker
@@ -70,8 +65,6 @@ func (awsLambda AwsLambda) ServeHTTP(w http.ResponseWriter, r *http.Request, nex
 		awsLambda.Headers.Request.ApplyToRequest(r)
 	}
 
-	functionName := awsLambda.FunctionName
-
 	// Create and prepare the Lambda request
 	req, err := NewLambdaRequest(r)
 	if err != nil {
@@ -84,7 +77,7 @@ func (awsLambda AwsLambda) ServeHTTP(w http.ResponseWriter, r *http.Request, nex
 	}
 
 	invokeInput := &lambda.InvokeInput{
-		FunctionName: aws.String(functionName),
+		FunctionName: aws.String(awsLambda.FunctionName),
 		Payload:      payload,
 	}
 
@@ -99,21 +92,13 @@ func (awsLambda AwsLambda) ServeHTTP(w http.ResponseWriter, r *http.Request, nex
 		return caddyhttp.Error(http.StatusInternalServerError, err)
 	}
 
-	// Set response headers
-	for k, v := range response.Headers {
-		recorder.Header().Add(k, v)
-	}
+	// Send the response
+	return awsLambda.sendResponse(recorder, response, repl)
+}
 
-	for k, vals := range response.MultiValueHeaders {
-		for _, v := range vals {
-			recorder.Header().Add(k, v)
-		}
-	}
-
-	// Default the Content-Type if not provided
-	if recorder.Header().Get("content-type") == "" {
-		recorder.Header().Set("content-type", "application/json")
-	}
+func (awsLambda AwsLambda) sendResponse(recorder http.ResponseWriter, response *events.ALBTargetGroupResponse, repl *caddy.Replacer) error {
+	// Add response headers
+	awsLambda.addResponseHeaders(recorder, response)
 
 	// Set default status code if needed
 	if response.StatusCode <= 0 {
@@ -130,6 +115,7 @@ func (awsLambda AwsLambda) ServeHTTP(w http.ResponseWriter, r *http.Request, nex
 
 	// Decode and write response body
 	var bodyBytes []byte
+	var err error
 	if response.IsBase64Encoded && response.Body != "" {
 		bodyBytes, err = base64.StdEncoding.DecodeString(response.Body)
 		if err != nil {
@@ -145,9 +131,23 @@ func (awsLambda AwsLambda) ServeHTTP(w http.ResponseWriter, r *http.Request, nex
 		return caddyhttp.Error(http.StatusInternalServerError, err)
 	}
 
-	// Important: If we handled the request successfully and don't want to
-	// pass it to the next handler, we should return nil here
 	return nil
+}
+
+func (awsLambda AwsLambda) addResponseHeaders(recorder http.ResponseWriter, response *events.ALBTargetGroupResponse) {
+	for k, v := range response.Headers {
+		recorder.Header().Add(k, v)
+	}
+
+	for k, vals := range response.MultiValueHeaders {
+		for _, v := range vals {
+			recorder.Header().Add(k, v)
+		}
+	}
+
+	if recorder.Header().Get("content-type") == "" {
+		recorder.Header().Set("content-type", "application/json")
+	}
 }
 
 func (awsLambda *AwsLambda) Provision(ctx caddy.Context) error {

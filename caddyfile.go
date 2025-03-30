@@ -25,16 +25,12 @@ func init() {
 // parseCaddyfile sets up a handler for function execution
 func parseCaddyfile(h httpcaddyfile.Helper) (caddyhttp.MiddlewareHandler, error) {
 	var awsLambda AwsLambda
-	// awsLambda.logger = initDebugLogger()
 	err := awsLambda.UnmarshalCaddyfile(h.Dispenser)
 	return awsLambda, err
 }
 
 // UnmarshalCaddyfile implements caddyfile.Unmarshaler.
 func (awsLambda *AwsLambda) UnmarshalCaddyfile(d *caddyfile.Dispenser) error {
-
-	// fmt.Fprintln(os.Stderr, d)
-
 	for d.Next() {
 		args := d.RemainingArgs()
 		if len(args) > 0 {
@@ -84,24 +80,24 @@ func (awsLambda *AwsLambda) UnmarshalCaddyfile(d *caddyfile.Dispenser) error {
 
 				switch len(args) {
 				case 1:
-					err = headers.CaddyfileHeaderOp(awsLambda.Headers.Request, args[0], "", aws.String(""))
+					err = headers.CaddyfileHeaderOp(awsLambda.Headers.Request, args[0], "", nil)
 				case 2:
 					// some lint checks, I guess
 					if strings.EqualFold(args[0], "host") && (args[1] == "{hostport}" || args[1] == "{http.request.hostport}") {
-						caddy.Log().Named(pluginName).Warn("Unnecessary header_up Host: the reverse proxy's default behavior is to pass headers to the upstream")
+						caddy.Log().Named("caddyfile").Warn("Unnecessary header_up Host: the reverse proxy's default behavior is to pass headers to the upstream")
 					}
 					if strings.EqualFold(args[0], "x-forwarded-for") && (args[1] == "{remote}" || args[1] == "{http.request.remote}" || args[1] == "{remote_host}" || args[1] == "{http.request.remote.host}") {
-						caddy.Log().Named(pluginName).Warn("Unnecessary header_up X-Forwarded-For: the reverse proxy's default behavior is to pass headers to the upstream")
+						caddy.Log().Named("caddyfile").Warn("Unnecessary header_up X-Forwarded-For: the reverse proxy's default behavior is to pass headers to the upstream")
 					}
 					if strings.EqualFold(args[0], "x-forwarded-proto") && (args[1] == "{scheme}" || args[1] == "{http.request.scheme}") {
-						caddy.Log().Named(pluginName).Warn("Unnecessary header_up X-Forwarded-Proto: the reverse proxy's default behavior is to pass headers to the upstream")
+						caddy.Log().Named("caddyfile").Warn("Unnecessary header_up X-Forwarded-Proto: the reverse proxy's default behavior is to pass headers to the upstream")
 					}
 					if strings.EqualFold(args[0], "x-forwarded-host") && (args[1] == "{host}" || args[1] == "{http.request.host}" || args[1] == "{hostport}" || args[1] == "{http.request.hostport}") {
-						caddy.Log().Named(pluginName).Warn("Unnecessary header_up X-Forwarded-Host: the reverse proxy's default behavior is to pass headers to the upstream")
+						caddy.Log().Named("caddyfile").Warn("Unnecessary header_up X-Forwarded-Host: the reverse proxy's default behavior is to pass headers to the upstream")
 					}
-					err = headers.CaddyfileHeaderOp(awsLambda.Headers.Request, args[0], args[1], aws.String(""))
+					err = headers.CaddyfileHeaderOp(awsLambda.Headers.Request, args[0], args[1], nil)
 				case 3:
-					err = headers.CaddyfileHeaderOp(awsLambda.Headers.Request, args[0], args[1], aws.String(args[2]))
+					err = headers.CaddyfileHeaderOp(awsLambda.Headers.Request, args[0], args[1], &args[2])
 				default:
 					return d.ArgErr()
 				}
@@ -121,13 +117,14 @@ func (awsLambda *AwsLambda) UnmarshalCaddyfile(d *caddyfile.Dispenser) error {
 					}
 				}
 				args := d.RemainingArgs()
+
 				switch len(args) {
 				case 1:
-					err = headers.CaddyfileHeaderOp(awsLambda.Headers.Response.HeaderOps, args[0], "", aws.String(""))
+					err = headers.CaddyfileHeaderOp(awsLambda.Headers.Response.HeaderOps, args[0], "", nil)
 				case 2:
-					err = headers.CaddyfileHeaderOp(awsLambda.Headers.Response.HeaderOps, args[0], args[1], aws.String(""))
+					err = headers.CaddyfileHeaderOp(awsLambda.Headers.Response.HeaderOps, args[0], args[1], nil)
 				case 3:
-					err = headers.CaddyfileHeaderOp(awsLambda.Headers.Response.HeaderOps, args[0], args[1], aws.String(args[2]))
+					err = headers.CaddyfileHeaderOp(awsLambda.Headers.Response.HeaderOps, args[0], args[1], &args[2])
 				default:
 					return d.ArgErr()
 				}
