@@ -20,7 +20,6 @@ import (
 
 func init() {
 	caddy.RegisterModule(AwsLambda{})
-	// httpcaddyfile.RegisterHandlerDirective("awslambda", parseCaddyfile)
 }
 
 type Invoker interface {
@@ -112,6 +111,10 @@ func (awsLambda AwsLambda) sendResponse(recorder http.ResponseWriter, response *
 
 	// Write status code
 	recorder.WriteHeader(response.StatusCode)
+
+	if response.StatusCode == 204 {
+		return nil
+	}
 
 	// Decode and write response body
 	var bodyBytes []byte
