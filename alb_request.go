@@ -3,11 +3,13 @@ package awslambda
 import (
 	"bytes"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
 
 	"github.com/aws/aws-lambda-go/events"
+	"github.com/caddyserver/caddy/v2/modules/caddyhttp"
 )
 
 func NewLambdaRequest(r *http.Request) (*events.ALBTargetGroupRequest, error) {
@@ -27,6 +29,7 @@ func NewLambdaRequest(r *http.Request) (*events.ALBTargetGroupRequest, error) {
 	}
 
 	headers["host"] = []string{r.Host}
+	addForwardedHeaders(r, headers)
 
 	request := &events.ALBTargetGroupRequest{
 		HTTPMethod:                      r.Method,
@@ -35,7 +38,7 @@ func NewLambdaRequest(r *http.Request) (*events.ALBTargetGroupRequest, error) {
 		MultiValueQueryStringParameters: queryParams,
 		RequestContext: events.ALBTargetGroupRequestContext{
 			ELB: events.ELBContext{
-				TargetGroupArn: "this-is-my-target-group",
+				TargetGroupArn: "",
 			},
 		},
 		IsBase64Encoded: false,
@@ -43,4 +46,29 @@ func NewLambdaRequest(r *http.Request) (*events.ALBTargetGroupRequest, error) {
 	}
 
 	return request, nil
+}
+
+func ClientIP(r *http.Request) string {
+	address := caddyhttp.GetVar(r.Context(), caddyhttp.ClientIPVarKey).(string)
+	clientIP, _, err := net.SplitHostPort(address)
+	if err != nil {
+		clientIP = address // no port
+	}
+	return clientIP
+}
+
+func addForwardedHeaders(r *http.Request, headers map[string][]string) {
+	headers["x-forwarded-for"] = []string{ClientIP(r)}
+
+	proto := "http"
+	if r.TLS != nil {
+		proto = "https"
+	}
+	headers["x-forwarded-proto"] = []string{proto}
+
+	port := "80"
+	if proto == "https" {
+		port = "443"
+	}
+	headers["x-forwarded-port"] = []string{port}
 }
