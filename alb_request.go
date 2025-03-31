@@ -5,7 +5,6 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"net/url"
 	"strings"
 
 	"github.com/aws/aws-lambda-go/events"
@@ -21,15 +20,8 @@ func NewLambdaRequest(r *http.Request) (*events.ALBTargetGroupRequest, error) {
 		}
 	}
 
-	queryParams, _ := url.ParseQuery(r.URL.RawQuery)
-
-	headers := make(map[string][]string)
-	for k, v := range r.Header {
-		headers[strings.ToLower(k)] = v
-	}
-
-	headers["host"] = []string{r.Host}
-	addForwardedHeaders(r, headers)
+	queryParams := createQueryParameters(r)
+	headers := createHeaders(r)
 
 	request := &events.ALBTargetGroupRequest{
 		HTTPMethod:                      r.Method,
@@ -48,17 +40,30 @@ func NewLambdaRequest(r *http.Request) (*events.ALBTargetGroupRequest, error) {
 	return request, nil
 }
 
-func ClientIP(r *http.Request) string {
-	address := caddyhttp.GetVar(r.Context(), caddyhttp.ClientIPVarKey).(string)
-	clientIP, _, err := net.SplitHostPort(address)
-	if err != nil {
-		clientIP = address // no port
+func createQueryParameters(r *http.Request) map[string][]string {
+	queryParams := make(map[string][]string)
+	for _, param := range strings.Split(r.URL.RawQuery, "&") {
+		key, value, _ := strings.Cut(param, "=")
+		if key == "" {
+			continue
+		}
+		queryParams[key] = append(queryParams[key], value)
 	}
-	return clientIP
+	return queryParams
 }
 
+func createHeaders(r *http.Request) map[string][]string {
+	headers := make(map[string][]string)
+	for k, v := range r.Header {
+		headers[strings.ToLower(k)] = v
+	}
+
+	headers["host"] = []string{r.Host}
+	addForwardedHeaders(r, headers)
+	return headers
+}
 func addForwardedHeaders(r *http.Request, headers map[string][]string) {
-	headers["x-forwarded-for"] = []string{ClientIP(r)}
+	headers["x-forwarded-for"] = []string{clientIP(r)}
 
 	proto := "http"
 	if r.TLS != nil {
@@ -71,4 +76,13 @@ func addForwardedHeaders(r *http.Request, headers map[string][]string) {
 		port = "443"
 	}
 	headers["x-forwarded-port"] = []string{port}
+}
+
+func clientIP(r *http.Request) string {
+	address := caddyhttp.GetVar(r.Context(), caddyhttp.ClientIPVarKey).(string)
+	clientIP, _, err := net.SplitHostPort(address)
+	if err != nil {
+		clientIP = address // no port
+	}
+	return clientIP
 }

@@ -54,13 +54,19 @@ func (AwsLambda) CaddyModule() caddy.ModuleInfo {
 }
 
 func (awsLambda AwsLambda) ServeHTTP(w http.ResponseWriter, r *http.Request, next caddyhttp.Handler) error {
+	// Define a shouldBuffer function - returns false to never buffer responses
+	shouldBuffer := func(statusCode int, header http.Header) bool {
+		return false // We don't need to buffer responses for AWS Lambda
+	}
+
 	// Use a response recorder to capture the response
-	recorder := caddyhttp.NewResponseRecorder(w, nil, nil)
+	// In Caddy v2.9.1, NewResponseRecorder requires three parameters
+	recorder := caddyhttp.NewResponseRecorder(w, nil, shouldBuffer)
 
 	// Apply the header changes to the request
 	repl := r.Context().Value(caddy.ReplacerCtxKey).(*caddy.Replacer)
 
-	if awsLambda.Headers.Request != nil {
+	if awsLambda.Headers != nil && awsLambda.Headers.Request != nil {
 		awsLambda.Headers.Request.ApplyToRequest(r)
 	}
 
@@ -105,7 +111,7 @@ func (awsLambda AwsLambda) sendResponse(recorder http.ResponseWriter, response *
 	}
 
 	// Apply response headers from config
-	if awsLambda.Headers.Response != nil {
+	if awsLambda.Headers != nil && awsLambda.Headers.Response != nil {
 		awsLambda.Headers.Response.ApplyTo(recorder.Header(), repl)
 	}
 
