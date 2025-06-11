@@ -3,7 +3,9 @@ package awslambda
 import (
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"regexp"
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-sdk-go/aws"
@@ -30,9 +32,9 @@ type AwsLambda struct {
 	// Path this config block maps to
 	Path string `json:"path,omitempty"`
 	// AWS Access Key. If omitted, AWS_ACCESS_KEY_ID env var is used.
-	AwsAccess string `json:"aws_access,omitempty"`
+	AwsAccess string `json:"aws_access_key,omitempty"`
 	// AWS Secret Key. If omitted, AWS_SECRET_ACCESS_KEY env var is used.
-	AwsSecret string `json:"aws_secret,omitempty"`
+	AwsSecret string `json:"aws_secret_key,omitempty"`
 	// AWS Region. If omitted, AWS_REGION env var is used.
 	AwsRegion string `json:"aws_region,omitempty"`
 	// If set, all requests to this path will invoke this function.
@@ -173,7 +175,26 @@ func (awsLambda *AwsLambda) Provision(ctx caddy.Context) error {
 
 // Validate validates that the module has a usable config.
 func (awsLambda AwsLambda) Validate() error {
-	// TODO: validate the module's setup
+	if awsLambda.FunctionName == "" {
+		return fmt.Errorf("function_name is required")
+	}
+
+	// Check length constraints (1-170 characters)
+	if len(awsLambda.FunctionName) < 1 || len(awsLambda.FunctionName) > 170 {
+		return fmt.Errorf("function_name must be between 1 and 170 characters")
+	}
+
+	// AWS Lambda function name pattern
+	// (arn:(aws[a-zA-Z-]*)?:lambda:)?([a-z]{2}(-gov)?-[a-z]+-\d{1}:)?(\d{12}:)?(function:)?([a-zA-Z0-9-_\.]+)(:(\$LATEST|[a-zA-Z0-9-_]+))?
+	pattern := `^(arn:(aws[a-zA-Z-]*)?:lambda:)?([a-z]{2}(-gov)?-[a-z]+-\d{1}:)?(\d{12}:)?(function:)?([a-zA-Z0-9-_\.]+)(:(\$LATEST|[a-zA-Z0-9-_]+))?$`
+	match, err := regexp.MatchString(pattern, awsLambda.FunctionName)
+	if err != nil {
+		return fmt.Errorf("error validating function_name pattern: %v", err)
+	}
+	if !match {
+		return fmt.Errorf("invalid function_name format: must be a valid function name, ARN, or partial ARN")
+	}
+
 	return nil
 }
 

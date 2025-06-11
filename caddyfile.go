@@ -39,14 +39,14 @@ func (awsLambda *AwsLambda) UnmarshalCaddyfile(d *caddyfile.Dispenser) error {
 
 		for d.NextBlock(0) {
 			switch d.Val() {
-			case "aws_secret":
+			case "aws_secret_key":
 				args = d.RemainingArgs()
 				err := ensureArgsCount(d, args, 1)
 				if err != nil {
 					return err
 				}
 				awsLambda.AwsSecret = args[0]
-			case "aws_access":
+			case "aws_access_key":
 				args = d.RemainingArgs()
 				err := ensureArgsCount(d, args, 1)
 				if err != nil {
@@ -144,14 +144,20 @@ func (awsLambda *AwsLambda) UnmarshalCaddyfile(d *caddyfile.Dispenser) error {
 
 func (awsLambda *AwsLambda) ToAwsConfig() *aws.Config {
 	awsConf := aws.NewConfig()
+
+	// Set region if provided, otherwise AWS SDK will use AWS_REGION env var
 	if awsLambda.AwsRegion != "" {
 		awsConf.WithRegion(awsLambda.AwsRegion)
 	}
-	if awsLambda.AwsAccess != "" {
+
+	// Set credentials if provided, otherwise AWS SDK will use environment variables
+	// (AWS_ACCESS_KEY_ID and AWS_SECRET_ACCESS_KEY)
+	if awsLambda.AwsAccess != "" && awsLambda.AwsSecret != "" {
 		awsConf.WithCredentials(credentials.NewStaticCredentials(
 			awsLambda.AwsAccess, awsLambda.AwsSecret, "",
 		))
 	}
+
 	return awsConf
 }
 
